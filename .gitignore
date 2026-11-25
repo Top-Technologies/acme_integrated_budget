@@ -1,0 +1,108 @@
+
+# ==============================
+# Python
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+.eggs/
+*.egg-info/
+wheels/
+
+# ==============================
+# Virtual Environments
+# ==============================
+venv/
+env/
+.venv/
+ENV/
+
+# ==============================
+# Odoo
+# ==============================
+*.log
+*.log.*
+odoo.log
+odoo-server.log
+*.dump
+*.backup/
+
+# Odoo development files
+*.pot
+*.mo
+*.pyc
+
+# ==============================
+# IDEs and Editors
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# ==============================
+# Environment Variables / Secrets
+# ==============================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+config.local.py
+
+# ==============================
+# Operating System
+# ==============================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==============================
+# Testing / Coverage
+# ==============================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# ==============================
+# Node.js (if applicable)
+# ==============================
+node_modules/
+.npm/
+.next/
+dist/
+.nuxt/
+
+# ==============================
+# Temporary Files
+# ==============================
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.cache
+*.pid
+
+# ==============================
+# Database Files
+# ==============================
+*.sqlite
+*.sqlite3
+*.db
+

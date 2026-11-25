@@ -1,0 +1,972 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="department_budget_view_search" model="ir.ui.view">
+        <field name="name">acme.department.budget.search</field>
+        <field name="model">acme.department.budget</field>
+        <field name="arch" type="xml">
+            <search string="Department Budgets">
+                <field name="name"/>
+                <field name="fiscal_year"/>
+                <field name="department_id"/>
+                <field name="owner_id"/>
+                <field name="state"/>
+                <filter name="my_department" string="My Department"
+                        domain="[('department_id.budget_user_ids', 'in', [uid])]"/>
+                <filter name="awaiting_review" string="Awaiting Review"
+                        domain="[('state', 'in', ('manager_review', 'finance_review', 'corporate_review'))]"/>
+                <filter name="approved" string="Approved"
+                        domain="[('state', '=', 'approved')]"/>
+                <group>
+                    <filter name="group_department" string="Department"
+                            context="{'group_by': 'department_id'}"/>
+                    <filter name="group_fiscal_year" string="Fiscal Year"
+                            context="{'group_by': 'fiscal_year'}"/>
+                    <filter name="group_state" string="Status"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="department_budget_view_list" model="ir.ui.view">
+        <field name="name">acme.department.budget.list</field>
+        <field name="model">acme.department.budget</field>
+        <field name="arch" type="xml">
+            <list string="Departmental Budgets"
+                  decoration-info="state in ('draft', 'returned')"
+                  decoration-success="state == 'approved'">
+                <field name="name"/>
+                <field name="fiscal_year"/>
+                <field name="department_id"/>
+                <field name="owner_id" widget="many2one_avatar_user"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="total_revenue" sum="Revenue"/>
+                <field name="total_cost" sum="Cost"/>
+                <field name="net_result" sum="Net Result"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="department_budget_view_form" model="ir.ui.view">
+        <field name="name">acme.department.budget.form</field>
+        <field name="model">acme.department.budget</field>
+        <field name="arch" type="xml">
+            <form string="Departmental Budget">
+                <header>
+                    <button name="action_submit" type="object"
+                            string="Submit to Manager" class="oe_highlight"
+                            invisible="state not in ('draft', 'returned')"
+                            groups="acme_integrated_budget.group_department_budget_user,acme_integrated_budget.group_corporate_budget"/>
+                    <button name="action_manager_approve" type="object"
+                            string="Submit to Corporate Finance"
+                            class="oe_highlight" invisible="state != 'manager_review'"
+                            groups="acme_integrated_budget.group_department_budget_user,acme_integrated_budget.group_corporate_budget"/>
+                    <button name="action_finance_approve" type="object"
+                            string="Submit for Corporate Approval"
+                            class="oe_highlight" invisible="state != 'finance_review'"
+                            groups="acme_integrated_budget.group_corporate_budget"/>
+                    <button name="action_return_for_correction" type="object"
+                            string="Return for Correction"
+                            invisible="state not in ('finance_review', 'corporate_review')"
+                            groups="acme_integrated_budget.group_corporate_budget"/>
+                    <button name="action_corporate_approve" type="object"
+                            string="Approve Department Budget"
+                            class="oe_highlight" invisible="state != 'corporate_review'"
+                            groups="acme_integrated_budget.group_corporate_budget"/>
+                    <button name="action_refresh_integrated_monitoring"
+                            type="object" string="Refresh Transactions"
+                            groups="acme_integrated_budget.group_corporate_budget"/>
+                    <button name="action_create_revision" type="object"
+                            string="Create Revision"
+                            invisible="state != 'approved'"
+                            groups="acme_integrated_budget.group_department_budget_user,acme_integrated_budget.group_corporate_budget"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,manager_review,finance_review,corporate_review,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" readonly="state != 'draft'"/></h1>
+                    </div>
+                    <group>
+                        <group string="Budget Header">
+                            <field name="budget_name"
+                                   readonly="state not in ('draft', 'returned')"/>
+                            <field name="company_id"
+                                   readonly="state not in ('draft', 'returned')"
+                                   groups="base.group_multi_company"/>
+                            <field name="fiscal_year"
+                                   readonly="state not in ('draft', 'returned')"/>
+                            <field name="department_id"
+                                   readonly="state not in ('draft', 'returned')"/>
+                            <field name="owner_id"
+                                   readonly="state not in ('draft', 'returned')"/>
+                            <field name="prepared_by_id" readonly="1"/>
+                            <field name="version_type" readonly="1"/>
+                            <field name="version_number" readonly="1"/>
+                            <field name="submission_date" readonly="1"/>
+                            <field name="revision_of_id" readonly="1"
+                                   invisible="not revision_of_id"/>
+                        </group>
+                        <group string="Period &amp; Approval">
+                            <field name="date_from"
+                                   readonly="state not in ('draft', 'returned')"/>
+                            <field name="date_to"
+                                   readonly="state not in ('draft', 'returned')"/>
+                            <field name="currency_id" readonly="1"/>
+                            <field name="approval_reference"
+                                   readonly="state == 'approved'"
+                                   groups="acme_integrated_budget.group_corporate_budget"/>
+                            <field name="finance_feedback" readonly="1"
+                                   groups="acme_integrated_budget.group_department_budget_user"/>
+                            <field name="finance_feedback"
+                                   readonly="state == 'approved'"
+                                   groups="acme_integrated_budget.group_corporate_budget"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="assumptions"
+                               readonly="state not in ('draft', 'returned')"/>
+                    </group>
+                    <notebook>
+                        <page string="Budget Lines">
+                            <field name="line_ids"
+                                   readonly="state not in ('draft', 'returned')">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="line_reference" readonly="1"/>
+                                    <field name="plan_type"/>
+                                    <field name="category"/>
+                                    <field name="business_type"/>
+                                    <field name="department_id" readonly="1"
+                                           optional="hide"/>
+                                    <field name="department_analytic_account_id"/>
+                                    <field name="project_analytic_account_id"
+                                           optional="hide"/>
+                                    <field name="project_category_wbs"
+                                           optional="hide"/>
+                                    <field name="product_id" optional="hide"/>
+                                    <field name="product_category_id"
+                                           optional="hide"/>
+                                    <field name="cost_category" optional="hide"/>
+                                    <field name="account_id"/>
+                                    <field name="account_code" readonly="1"
+                                           optional="hide"/>
+                                    <field name="account_name" readonly="1"
+                                           optional="hide"/>
+                                    <field name="customer_id" optional="hide"/>
+                                    <field name="uom_id" optional="hide"/>
+                                    <field name="planning_basis"
+                                           optional="hide"/>
+                                    <field name="contract_reference"
+                                           optional="hide"/>
+                                    <field name="description"/>
+                                    <field name="responsible_owner_id"
+                                           optional="hide"/>
+                                    <field name="notes" optional="hide"/>
+                                    <field name="annual_planned" sum="Annual Planned"/>
+                                </list>
+                                <form string="Budget Line">
+                                    <sheet>
+                                        <group>
+                                            <group>
+                                                <field name="line_reference" readonly="1"/>
+                                                <field name="department_id" readonly="1"/>
+                                                <field name="description"/>
+                                                <field name="plan_type"/>
+                                                <field name="category"/>
+                                                <field name="business_type"/>
+                                                <field name="cost_category"/>
+                                                <field name="planning_basis"/>
+                                                <field name="responsible_owner_id"/>
+                                            </group>
+                                            <group>
+                                                <field name="department_analytic_account_id"/>
+                                                <field name="project_analytic_account_id"/>
+                                                <field name="project_category_wbs"/>
+                                                <field name="product_id"/>
+                                                <field name="product_category_id"/>
+                                                <field name="account_id"/>
+                                                <field name="account_code" readonly="1"/>
+                                                <field name="account_name" readonly="1"/>
+                                                <field name="customer_id"/>
+                                                <field name="uom_id"/>
+                                                <field name="contract_reference"/>
+                                            </group>
+                                        </group>
+                                        <field name="notes"/>
+                                        <field name="month_plan_ids"
+                                               context="{'default_budget_line_id': id}">
+                                            <list create="0" delete="0">
+                                                <field name="month_number" column_invisible="1"/>
+                                                <field name="planning_basis" column_invisible="1"/>
+                                                <field name="period_name"/>
+                                                <field name="use_quantity_rate"/>
+                                                <field name="planned_quantity"/>
+                                                <field name="uom_id"/>
+                                                <field name="unit_rate"/>
+                                                <field name="manual_amount"/>
+                                                <field name="planned_amount"
+                                                       sum="Calculated Planned Amount"/>
+                                                <field name="original_budget"
+                                                       optional="hide"/>
+                                                <field name="approved_revision_amount"
+                                                       optional="hide"/>
+                                                <field name="revised_budget"
+                                                       optional="hide"/>
+                                                <field name="ordered_amount"
+                                                       string="Manual Commitment Adjustment"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="integrated_ordered_amount"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="integrated_order_total_amount"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="integrated_ordered_quantity"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="integrated_ordered_uom_id"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="invoiced_amount"
+                                                       string="Manual Invoice Adjustment"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="integrated_invoiced_amount"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="actual_amount"
+                                                       string="Manual Actual Adjustment"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="integrated_actual_amount"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="remaining_amount"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                                <field name="used_percent"
+                                                       optional="hide"
+                                                       groups="acme_integrated_budget.group_corporate_budget"/>
+                                            </list>
+                                            <form string="Monthly Plan">
+                                                <group>
+                                                    <field name="month_number" invisible="1"/>
+                                                    <field name="planning_basis" invisible="1"/>
+                                                    <field name="period_name" readonly="1"/>
+                                                    <field name="use_quantity_rate"/>
+                                                    <field name="planned_quantity"/>
+                                                    <field name="uom_id" readonly="1"/>
+                                                    <field name="unit_rate"/>
+                                                    <field name="manual_amount"/>
+                                                    <field name="planned_amount" readonly="1"/>
+                                                    <field name="original_budget" readonly="1"/>
+                                                    <field name="approved_revision_amount"
+                                                           readonly="1"/>
+                                                    <field name="revised_budget" readonly="1"/>
+                                                    <field name="ordered_amount"
+                                                           string="Manual Commitment Adjustment"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="integrated_ordered_amount"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="integrated_order_total_amount"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="integrated_ordered_quantity"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="integrated_ordered_uom_id"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="invoiced_amount"
+                                                           string="Manual Invoice Adjustment"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="integrated_invoiced_amount"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="actual_amount"
+                                                           string="Manual Actual Adjustment"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="integrated_actual_amount"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="remaining_amount"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="used_percent"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="quantity_actual"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                    <field name="quantity_variance"
+                                                           groups="acme_integrated_budget.group_corporate_budget"/>
+                                                </group>
+                                            </form>
+                                        </field>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+                        <page string="Monthly Planning">
+                            <field name="month_plan_ids"
+                                   readonly="state not in ('draft', 'returned')">
+                                <list create="0" delete="0">
+                                    <field name="line_reference" readonly="1"/>
+                                    <field name="description" string="Budget Line"
+                                           readonly="1"/>
+                                    <field name="account_code" optional="hide"
+                                           readonly="1"/>
+                                    <field name="period_name" string="Month"
+                                           readonly="1"/>
+                                    <field name="planned_amount" readonly="1"
+                                           sum="Calculated Planned Amount"/>
+                                </list>
+                                <form string="Monthly Plan">
+                                    <sheet>
+                                        <notebook>
+                                            <page string="Plan">
+                                                <group>
+                                                    <group string="Budget Line">
+                                                        <field name="budget_line_id"
+                                                               readonly="1"/>
+                                                        <field name="line_reference"
+                                                               readonly="1"/>
+                                                        <field name="description"
+                                                               readonly="1"/>
+                                                        <field name="account_id"
+                                                               readonly="1"/>
+                                                        <field name="plan_type"
+                                                               readonly="1"/>
+                                                        <field name="category"
+                                                               readonly="1"/>
+                                                    </group>
+                                                    <group string="Monthly Amount">
+                                                        <field name="month_number"
+                                                               invisible="1"/>
+                                                        <field name="period_name"
+                                                               string="Month"
+                                                               readonly="1"/>
+                                                        <field name="planning_basis"
+                                                               readonly="1"/>
+                                                        <field name="use_quantity_rate"/>
+                                                        <field name="planned_quantity"/>
+                                                        <field name="uom_id"
+                                                               readonly="1"/>
+                                                        <field name="unit_rate"/>
+                                                        <field name="manual_amount"/>
+                                                        <field name="planned_amount"
+                                                               readonly="1"/>
+                                                    </group>
+                                                </group>
+                                            </page>
+                                            <page string="Monitoring"
+                                                  groups="acme_integrated_budget.group_corporate_budget">
+                                                <group>
+                                                    <group string="Budget">
+                                                        <field name="original_budget"
+                                                               readonly="1"/>
+                                                        <field name="approved_revision_amount"
+                                                               readonly="1"/>
+                                                        <field name="revised_budget"
+                                                               readonly="1"/>
+                                                        <field name="remaining_amount"
+                                                               readonly="1"/>
+                                                        <field name="used_percent"
+                                                               widget="percentage"
+                                                               readonly="1"/>
+                                                    </group>
+                                                    <group string="Orders and Actuals">
+                                                        <field name="ordered_amount"
+                                                               string="Manual Commitment Adjustment"/>
+                                                        <field name="integrated_ordered_amount"
+                                                               readonly="1"/>
+                                                        <field name="integrated_order_total_amount"
+                                                               readonly="1"/>
+                                                        <field name="integrated_ordered_quantity"
+                                                               readonly="1"/>
+                                                        <field name="integrated_ordered_uom_id"
+                                                               readonly="1"/>
+                                                        <field name="invoiced_amount"
+                                                               string="Manual Invoice Adjustment"/>
+                                                        <field name="integrated_invoiced_amount"
+                                                               readonly="1"/>
+                                                        <field name="actual_amount"
+                                                               string="Manual Actual Adjustment"/>
+                                                        <field name="integrated_actual_amount"
+                                                               readonly="1"/>
+                                                        <field name="quantity_actual"/>
+                                                        <field name="quantity_variance"
+                                                               readonly="1"/>
+                                                    </group>
+                                                </group>
+                                            </page>
+                                        </notebook>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+                        <page string="Summary">
+                            <group string="Operating Summary">
+                                <group>
+                                    <field name="total_revenue" widget="monetary"/>
+                                    <field name="total_direct_cost" widget="monetary"/>
+                                    <field name="gross_profit" widget="monetary"/>
+                                </group>
+                                <group>
+                                    <field name="total_operating_expense"
+                                           widget="monetary"/>
+                                    <field name="net_operating_result"
+                                           widget="monetary"/>
+                                    <field name="net_result" widget="monetary"/>
+                                </group>
+                            </group>
+                            <field name="category_summary_ids" readonly="1">
+                                <list create="0" delete="0">
+                                    <field name="plan_type"/>
+                                    <field name="category"/>
+                                    <field name="annual_planned"
+                                           sum="Annual Planned"/>
+                                    <field name="approved_revision_amount"
+                                           sum="Approved Revision"/>
+                                    <field name="revised_budget"
+                                           sum="Revised Budget"/>
+                                    <field name="ordered_amount"
+                                           string="Open Commitment"
+                                           sum="Open Commitment"/>
+                                    <field name="gross_order_value"
+                                           optional="hide"
+                                           sum="Gross Order Value"/>
+                                    <field name="invoiced_amount"
+                                           sum="Invoiced / Billed"/>
+                                    <field name="actual_amount" sum="Actual"/>
+                                    <field name="remaining_amount" sum="Remaining"/>
+                                    <field name="used_percent" widget="percentage"/>
+                                </list>
+                            </field>
+                            <field name="revision_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="version_number"/>
+                                    <field name="state"/>
+                                    <field name="create_date"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="department_budget_action" model="ir.actions.act_window">
+        <field name="name">Departmental Budgets</field>
+        <field name="res_model">acme.department.budget</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="department_budget_view_search"/>
+    </record>
+
+    <record id="corporate_budget_view_list" model="ir.ui.view">
+        <field name="name">acme.corporate.budget.list</field>
+        <field name="model">acme.corporate.budget</field>
+        <field name="arch" type="xml">
+            <list string="Corporate Budget Consolidations"
+                  decoration-success="state == 'approved'">
+                <field name="name"/>
+                <field name="fiscal_year"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="total_revenue" sum="Revenue"/>
+                <field name="total_cost" sum="Cost"/>
+                <field name="net_result" sum="Net Result"/>
+                <field name="state" widget="badge"/>
+                <field name="consolidated_by_id" widget="many2one_avatar_user"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="corporate_budget_view_form" model="ir.ui.view">
+        <field name="name">acme.corporate.budget.form</field>
+        <field name="model">acme.corporate.budget</field>
+        <field name="arch" type="xml">
+            <form string="Corporate Budget Consolidation">
+                <header>
+                    <button name="action_load_approved_budgets" type="object"
+                            string="Load Approved Department Budgets"
+                            invisible="state == 'approved'" class="oe_highlight"/>
+                    <button name="action_mark_reviewed" type="object"
+                            string="Mark Reviewed" invisible="state != 'draft'"/>
+                    <button name="action_approve" type="object"
+                            string="Approve Corporate Budget"
+                            class="oe_highlight" invisible="state != 'reviewed'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,reviewed,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" readonly="state != 'draft'"/></h1>
+                    </div>
+                    <group>
+                        <group string="Corporate Budget Header">
+                            <field name="budget_name" readonly="state != 'draft'"/>
+                            <field name="company_id" readonly="state != 'draft'"
+                                   groups="base.group_multi_company"/>
+                            <field name="fiscal_year" readonly="state != 'draft'"/>
+                            <field name="date_from" readonly="state != 'draft'"/>
+                            <field name="date_to" readonly="state != 'draft'"/>
+                            <field name="consolidation_date" readonly="state != 'draft'"/>
+                            <field name="consolidated_by_id" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Consolidated Result">
+                            <field name="currency_id" readonly="1"/>
+                            <field name="total_revenue" widget="monetary"/>
+                            <field name="total_cost" widget="monetary"/>
+                            <field name="net_result" widget="monetary"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Departmental Consolidation">
+                            <group>
+                                <field name="department_ids" widget="many2many_tags"
+                                       readonly="state != 'draft'"
+                                       domain="[('company_id', '=', company_id)]"/>
+                                <field name="pending_department_ids"
+                                       widget="many2many_tags" readonly="1"/>
+                            </group>
+                            <field name="department_budget_ids"
+                                   readonly="state != 'draft'"
+                                   domain="[('state', '=', 'approved'), ('company_id', '=', company_id), ('fiscal_year', '=', fiscal_year), ('date_from', '=', date_from), ('date_to', '=', date_to)]">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="department_id"/>
+                                    <field name="total_revenue" sum="Revenue"/>
+                                    <field name="total_cost" sum="Cost"/>
+                                    <field name="net_result" sum="Net Result"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="corporate_budget_action" model="ir.actions.act_window">
+        <field name="name">Corporate Budget Consolidation</field>
+        <field name="res_model">acme.corporate.budget</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="budget_variance_analysis_view_list" model="ir.ui.view">
+        <field name="name">acme.budget.variance.analysis.list</field>
+        <field name="model">acme.budget.variance.analysis</field>
+        <field name="arch" type="xml">
+            <list string="Budget Variance Analyses"
+                  decoration-success="state == 'computed'">
+                <field name="name"/>
+                <field name="corporate_budget_id"/>
+                <field name="analysis_period"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="analysis_date"/>
+                <field name="prepared_by_id"/>
+                <field name="total_planned" sum="Planned"/>
+                <field name="total_actual" sum="Actual Spent"/>
+                <field name="total_variance" sum="Variance"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="budget_variance_analysis_view_form" model="ir.ui.view">
+        <field name="name">acme.budget.variance.analysis.form</field>
+        <field name="model">acme.budget.variance.analysis</field>
+        <field name="arch" type="xml">
+            <form string="Budget Variance Analysis">
+                <header>
+                    <button name="action_compute" type="object"
+                            string="Compute Analysis" class="oe_highlight"
+                            invisible="state == 'computed'"/>
+                    <button name="action_compute" type="object"
+                            string="Recompute Analysis"
+                            invisible="state != 'computed'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,computed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                        <h2><field name="analysis_period" readonly="1"/></h2>
+                    </div>
+                    <group>
+                        <group string="Analysis Parameters">
+                            <field name="company_id" invisible="1"/>
+                            <field name="corporate_budget_id"/>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                            <field name="analysis_date"/>
+                            <field name="prepared_by_id"/>
+                        </group>
+                        <group string="Summary">
+                            <field name="total_planned"/>
+                            <field name="total_actual"/>
+                            <field name="total_variance"/>
+                            <field name="variance_percent"/>
+                            <field name="remaining_percent"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Variance Lines">
+                            <p class="text-muted">
+                                Variance is Planned minus Actual Spent. For costs,
+                                a positive variance is favorable; for revenue,
+                                actual above plan is favorable. Planned amounts
+                                are prorated for partial budget months. Posted
+                                actuals are filtered by transaction date and are
+                                not carried forward from earlier months.
+                            </p>
+                            <field name="variance_line_ids" readonly="1">
+                                <list create="0" edit="0" delete="0"
+                                      decoration-success="status == 'favorable'"
+                                      decoration-danger="status == 'unfavorable'">
+                                    <field name="department_id"/>
+                                    <field name="department_analytic_account_id"
+                                           string="Dimension"/>
+                                    <field name="account_id"/>
+                                    <field name="description"/>
+                                    <field name="product_id" optional="hide"/>
+                                    <field name="plan_type"/>
+                                    <field name="planned_amount"
+                                           sum="Planned"/>
+                                    <field name="actual_amount"
+                                           sum="Actual Spent"/>
+                                    <field name="variance_amount"
+                                           sum="Variance"/>
+                                    <field name="variance_percent"/>
+                                    <field name="status" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="GL Account Summary">
+                            <p class="text-muted">
+                                Planned versus actual spending summarized by
+                                general ledger account across the included
+                                departments.
+                            </p>
+                            <field name="gl_summary_line_ids" readonly="1">
+                                <list create="0" edit="0" delete="0"
+                                      decoration-success="status == 'favorable'"
+                                      decoration-danger="status == 'unfavorable'">
+                                    <field name="account_id"/>
+                                    <field name="plan_type"/>
+                                    <field name="planned_amount"
+                                           sum="Planned"/>
+                                    <field name="actual_amount"
+                                           sum="Actual Spent"/>
+                                    <field name="variance_amount"
+                                           sum="Variance"/>
+                                    <field name="variance_percent"/>
+                                    <field name="remaining_percent"/>
+                                    <field name="status" widget="badge"/>
+                                    <field name="currency_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Cost Center / Segment / Project Summary">
+                            <field name="dimension_summary_line_ids"
+                                   readonly="1">
+                                <list create="0" edit="0" delete="0"
+                                      decoration-success="status == 'favorable'"
+                                      decoration-danger="status == 'unfavorable'">
+                                    <field name="department_id"/>
+                                    <field name="business_type"/>
+                                    <field name="department_analytic_account_id"/>
+                                    <field name="project_analytic_account_id"/>
+                                    <field name="plan_type"/>
+                                    <field name="planned_amount"
+                                           sum="Planned"/>
+                                    <field name="actual_amount"
+                                           sum="Actual Spent"/>
+                                    <field name="variance_amount"
+                                           sum="Variance"/>
+                                    <field name="variance_percent"/>
+                                    <field name="status" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="budget_variance_analysis_action" model="ir.actions.act_window">
+        <field name="name">Budget Variance Analysis</field>
+        <field name="res_model">acme.budget.variance.analysis</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="department_budget_report_view_list" model="ir.ui.view">
+        <field name="name">acme.budget.department.report.list</field>
+        <field name="model">acme.budget.department.report</field>
+        <field name="arch" type="xml">
+            <list string="Approved Budget Monitoring">
+                <field name="period_date"/>
+                <field name="department_id"/>
+                <field name="budget_id"/>
+                <field name="line_reference"/>
+                <field name="budget_line_id"/>
+                <field name="description"/>
+                <field name="plan_type"/>
+                <field name="category"/>
+                <field name="cost_category"/>
+                <field name="business_type"/>
+                <field name="department_analytic_account_id"/>
+                <field name="project_analytic_account_id"/>
+                <field name="project_category_wbs"/>
+                <field name="product_id"/>
+                <field name="product_category_id"/>
+                <field name="account_id"/>
+                <field name="account_code"/>
+                <field name="account_name"/>
+                <field name="customer_id"/>
+                <field name="uom_id"/>
+                <field name="planning_basis"/>
+                <field name="use_quantity_rate"/>
+                <field name="contract_reference"/>
+                <field name="responsible_owner_id"/>
+                <field name="planned_amount" sum="Planned"/>
+                <field name="original_budget" sum="Original Budget"/>
+                <field name="approved_revision_amount" sum="Approved Revision"/>
+                <field name="revised_budget" sum="Revised Budget"/>
+                <field name="ordered_amount" string="Open Commitment"
+                       sum="Open Commitment"/>
+                <field name="integrated_order_total_amount"
+                       optional="hide"
+                       sum="Gross Order Value"/>
+                <field name="integrated_ordered_quantity"
+                       optional="hide"
+                       sum="Gross Ordered Quantity"/>
+                <field name="invoiced_amount" sum="Invoiced"/>
+                <field name="actual_amount" sum="Actual"/>
+                <field name="remaining_amount" sum="Remaining"/>
+                <field name="used_percent" widget="percentage"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="department_budget_report_view_pivot" model="ir.ui.view">
+        <field name="name">acme.budget.department.report.pivot</field>
+        <field name="model">acme.budget.department.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Corporate Budget by Department and Month">
+                <field name="department_id" type="row"/>
+                <field name="plan_type" type="row"/>
+                <field name="business_type" type="row"/>
+                <field name="category" type="row"/>
+                <field name="uom_id" type="row"/>
+                <field name="period_date" type="col" interval="month"/>
+                <field name="planned_amount" type="measure"/>
+                <field name="original_budget" type="measure"/>
+                <field name="approved_revision_amount" type="measure"/>
+                <field name="revised_budget" type="measure"/>
+                <field name="ordered_amount" type="measure"/>
+                <field name="integrated_order_total_amount" type="measure"/>
+                <field name="integrated_ordered_quantity" type="measure"/>
+                <field name="invoiced_amount" type="measure"/>
+                <field name="actual_amount" type="measure"/>
+                <field name="remaining_amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="department_budget_report_view_graph" model="ir.ui.view">
+        <field name="name">acme.budget.department.report.graph</field>
+        <field name="model">acme.budget.department.report</field>
+        <field name="arch" type="xml">
+            <graph string="Approved Budget by Department" type="bar">
+                <field name="department_id"/>
+                <field name="plan_type"/>
+                <field name="planned_amount" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="department_budget_report_action" model="ir.actions.act_window">
+        <field name="name">Budget Monitoring &amp; Reports</field>
+        <field name="res_model">acme.budget.department.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+    </record>
+
+    <record id="budget_month_plan_prep_view_search" model="ir.ui.view">
+        <field name="name">acme.budget.month.plan.preparation.search</field>
+        <field name="model">acme.budget.month.plan</field>
+        <field name="arch" type="xml">
+            <search string="Monthly Planning">
+                <field name="budget_id"/>
+                <field name="department_id"/>
+                <field name="line_reference"/>
+                <field name="account_id"/>
+                <field name="account_code"/>
+                <field name="description"/>
+                <field name="period_date"/>
+                <group>
+                    <filter name="group_budget" string="Budget"
+                            context="{'group_by': 'budget_id'}"/>
+                    <filter name="group_department" string="Department"
+                            context="{'group_by': 'department_id'}"/>
+                    <filter name="group_period" string="Month"
+                            context="{'group_by': 'period_date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="budget_month_plan_prep_view_list" model="ir.ui.view">
+        <field name="name">acme.budget.month.plan.preparation.list</field>
+        <field name="model">acme.budget.month.plan</field>
+        <field name="arch" type="xml">
+            <list string="Monthly Planning" editable="bottom" create="0" delete="0">
+                <field name="budget_id" readonly="1"/>
+                <field name="department_id" readonly="1"/>
+                <field name="line_reference" readonly="1"/>
+                <field name="account_id" readonly="1" optional="hide"/>
+                <field name="account_code" readonly="1"/>
+                <field name="account_name" readonly="1" optional="hide"/>
+                <field name="description" readonly="1" optional="hide"/>
+                <field name="plan_type" readonly="1" optional="hide"/>
+                <field name="category" readonly="1" optional="hide"/>
+                <field name="period_name" string="Month" readonly="1"/>
+                <field name="period_date" optional="hide" readonly="1"/>
+                <field name="use_quantity_rate"/>
+                <field name="planned_quantity"/>
+                <field name="uom_id" readonly="1"/>
+                <field name="unit_rate"/>
+                <field name="manual_amount"/>
+                <field name="planned_amount" readonly="1"/>
+                <field name="original_budget" readonly="1" optional="hide"/>
+                <field name="approved_revision_amount" readonly="1"
+                       optional="hide"/>
+                <field name="revised_budget" readonly="1" optional="hide"/>
+                <field name="integrated_order_total_amount" optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="integrated_ordered_quantity" optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="integrated_ordered_uom_id" optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="ordered_amount"
+                       string="Manual Commitment Adjustment"
+                       optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="integrated_ordered_amount" optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="invoiced_amount"
+                       string="Manual Invoice Adjustment"
+                       optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="actual_amount"
+                       string="Manual Actual Adjustment"
+                       optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="remaining_amount" readonly="1"
+                       optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="used_percent" widget="percentage" readonly="1"
+                       optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="quantity_actual"
+                       optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+                <field name="quantity_variance" readonly="1"
+                       optional="hide"
+                       groups="acme_integrated_budget.group_corporate_budget"/>
+            </list>
+        </field>
+    </record>
+    <record id="budget_month_plan_prep_action" model="ir.actions.act_window">
+        <field name="name">Monthly Planning</field>
+        <field name="res_model">acme.budget.month.plan</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="budget_month_plan_prep_view_list"/>
+        <field name="search_view_id" ref="budget_month_plan_prep_view_search"/>
+        <field name="domain">[('budget_id.state', 'in', ('draft', 'returned'))]</field>
+    </record>
+
+    <record id="budget_month_plan_view_list" model="ir.ui.view">
+        <field name="name">acme.budget.month.plan.monitoring.list</field>
+        <field name="model">acme.budget.month.plan</field>
+        <field name="arch" type="xml">
+            <list string="Approved Budget Monitoring" editable="bottom"
+                  create="0" delete="0">
+                <field name="period_date" optional="hide"/>
+                <field name="department_id"/>
+                <field name="budget_id"/>
+                <field name="budget_line_id" optional="hide"/>
+                <field name="line_reference"/>
+                <field name="description" optional="hide"/>
+                <field name="period_name"/>
+                <field name="use_quantity_rate" readonly="1" optional="hide"/>
+                <field name="planned_quantity" readonly="1" optional="hide"/>
+                <field name="uom_id" readonly="1" optional="hide"/>
+                <field name="unit_rate" readonly="1" optional="hide"/>
+                <field name="manual_amount" readonly="1" optional="hide"/>
+                <field name="planned_amount" readonly="1"/>
+                <field name="original_budget" readonly="1" optional="hide"/>
+                <field name="approved_revision_amount" readonly="1"
+                       optional="hide"/>
+                <field name="revised_budget" readonly="1" optional="hide"/>
+                <field name="integrated_order_total_amount" optional="hide"/>
+                <field name="integrated_ordered_quantity" optional="hide"/>
+                <field name="integrated_ordered_uom_id" optional="hide"/>
+                <field name="ordered_amount" string="Manual Commitment Adjustment"
+                       optional="hide"/>
+                <field name="integrated_ordered_amount" optional="hide"/>
+                <field name="invoiced_amount" string="Manual Invoice Adjustment"
+                       optional="hide"/>
+                <field name="actual_amount" string="Manual Actual Adjustment"
+                       optional="hide"/>
+                <field name="remaining_amount" readonly="1"/>
+                <field name="used_percent" widget="percentage" readonly="1"
+                       optional="hide"/>
+                <field name="quantity_actual" optional="hide"/>
+                <field name="quantity_variance" readonly="1" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="budget_month_plan_monitoring_action" model="ir.actions.act_window">
+        <field name="name">Monthly Plan Monitoring</field>
+        <field name="res_model">acme.budget.month.plan</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="budget_month_plan_view_list"/>
+        <field name="domain">[('budget_id.state', '=', 'approved')]</field>
+    </record>
+
+    <menuitem id="integrated_budget_root" name="Integrated Budgets"
+              parent="account.menu_finance_entries" sequence="65"
+              groups="acme_integrated_budget.group_department_budget_user,acme_integrated_budget.group_corporate_budget"/>
+    <menuitem id="department_budget_menu" name="Departmental Budgets"
+              parent="integrated_budget_root" action="department_budget_action"
+              sequence="10"
+              groups="acme_integrated_budget.group_department_budget_user,acme_integrated_budget.group_corporate_budget"/>
+    <menuitem id="corporate_budget_menu" name="Corporate Budget Consolidation"
+              parent="integrated_budget_root" action="corporate_budget_action"
+              sequence="20" groups="acme_integrated_budget.group_corporate_budget"/>
+    <menuitem id="budget_variance_analysis_menu"
+              name="Budget Variance Analysis"
+              parent="integrated_budget_root"
+              action="budget_variance_analysis_action" sequence="25"
+              groups="acme_integrated_budget.group_corporate_budget"/>
+    <menuitem id="department_budget_report_menu" name="Budget Monitoring &amp; Reports"
+              parent="integrated_budget_root"
+              action="department_budget_report_action" sequence="30"
+              groups="acme_integrated_budget.group_department_budget_user,acme_integrated_budget.group_corporate_budget"/>
+    <menuitem id="budget_month_plan_prep_menu" name="Monthly Planning"
+              parent="integrated_budget_root"
+              action="budget_month_plan_prep_action" sequence="35"
+              groups="acme_integrated_budget.group_department_budget_user,acme_integrated_budget.group_corporate_budget"/>
+    <menuitem id="budget_month_plan_monitoring_menu"
+              name="Monthly Plan Monitoring" parent="integrated_budget_root"
+              action="budget_month_plan_monitoring_action" sequence="40"
+              groups="acme_integrated_budget.group_corporate_budget"/>
+</odoo>
